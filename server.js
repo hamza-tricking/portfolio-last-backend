@@ -5,7 +5,14 @@ const connectDB = require('./config/db');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://hamza.dmtart.pro',
+    'https://hamza-portfolio-lemon.vercel.app',
+    'http://localhost:3000',
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 
 app.use('/api/auth', require('./routes/auth'));
