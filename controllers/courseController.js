@@ -2,7 +2,8 @@ const Course = require('../models/Course');
 
 exports.getCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ isPublished: true }).populate('createdBy', 'fullName');
+    const filter = (req.user && req.user.role === 'admin') ? {} : { isPublished: true };
+    const courses = await Course.find(filter).populate('createdBy', 'fullName');
     res.json(courses);
   } catch (err) {
     res.status(500).json({ message: err.message });

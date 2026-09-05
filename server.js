@@ -19,6 +19,10 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/orders', require('./routes/orders'));
+app.use('/api/referrals', require('./routes/referral'));
+app.use('/api/qa', require('./routes/qa'));
+app.use('/api/leaks', require('./routes/leaks'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

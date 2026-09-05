@@ -30,4 +30,18 @@ const adminOnly = (req, res, next) => {
   return res.status(403).json({ message: 'Admin access only' });
 };
 
-module.exports = { protect, adminOnly };
+const optionalAuth = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization;
+    if (header && header.startsWith('Bearer ')) {
+      const token = header.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = await User.findById(decoded.id);
+    }
+  } catch (err) {
+    // ignore invalid token, continue without user
+  }
+  next();
+};
+
+module.exports = { protect, adminOnly, optionalAuth };

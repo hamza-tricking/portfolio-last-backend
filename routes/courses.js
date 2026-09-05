@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const { getCourses, getCourse, createCourse, updateCourse, deleteCourse } = require('../controllers/courseController');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
 
-router.get('/', getCourses);
+router.get('/', optionalAuth, getCourses);
 router.get('/:id', getCourse);
 
 router.post('/', protect, adminOnly, createCourse);
