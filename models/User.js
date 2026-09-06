@@ -102,11 +102,10 @@ userSchema.pre('save', async function () {
 });
 
 // Auto-generate referral code on first save
-userSchema.pre('save', function (next) {
+userSchema.pre('save', function () {
   if (!this.referralCode) {
     this.referralCode = crypto.randomBytes(6).toString('hex').toUpperCase();
   }
-  next();
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
