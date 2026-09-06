@@ -1,15 +1,17 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const Order = require('../models/Order');
+
 const generateAccessToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: '15m',
+    expiresIn: '7d',
   });
 };
 
 const generateRefreshToken = (user) => {
   return jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: '7d',
+    expiresIn: '30d',
   });
 };
 
@@ -29,6 +31,14 @@ exports.register = async (req, res) => {
     }
 
     const user = await User.create({ username, fullName, email, password, phone, address, age });
+
+    // Link any existing orders that match the phone number
+    if (phone) {
+      await Order.updateMany(
+        { phone: phone, user: null },
+        { $set: { user: user._id } }
+      );
+    }
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);

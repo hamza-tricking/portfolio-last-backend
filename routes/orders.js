@@ -109,8 +109,8 @@ router.put('/:id/receipt', async (req, res) => {
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
-    if (!['confirmed', 'awaiting_payment'].includes(order.status)) {
-      return res.status(409).json({ message: 'Order must be confirmed before uploading receipt.' });
+    if (!['pending', 'confirmed', 'awaiting_payment'].includes(order.status)) {
+      return res.status(409).json({ message: 'Order must be active before uploading receipt.' });
     }
 
     order.receiptUrl = receiptUrl || 'mock-receipt.jpg';
