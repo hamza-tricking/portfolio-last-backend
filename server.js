@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const connectDB = require('./config/db');
 
 const app = express();
@@ -14,6 +15,19 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Serve static assets with CORS and 1-year immutable caching
+const staticOptions = {
+  maxAge: '1y',
+  immutable: true,
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Timing-Allow-Origin', '*');
+  },
+};
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
+app.use('/assets', express.static(path.join(__dirname, 'public'), staticOptions));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
