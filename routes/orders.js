@@ -182,39 +182,45 @@ router.put('/:id/step2', optionalAuth, async (req, res) => {
   }
 });
 
-// ── STEP 3: Upload receipt (file upload with validation) ───────────
+// ── STEP 3: Upload receipt (file upload with validation or JSON fallback) ─
 // PUT /api/orders/:id/receipt
 router.put('/:id/receipt', optionalAuth, (req, res, next) => {
-  uploadReceipt.single('receipt')(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ message: 'Receipt image size must be less than 10MB.' });
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    uploadReceipt.single('receipt')(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ message: 'Receipt image size must be less than 10MB.' });
+        }
+        return res.status(400).json({ message: err.message });
+      } else if (err) {
+        return res.status(400).json({ message: err.message });
       }
-      return res.status(400).json({ message: err.message });
-    } else if (err) {
-      return res.status(400).json({ message: err.message });
-    }
+      next();
+    });
+  } else {
     next();
-  });
+  }
 }, async (req, res) => {
   try {
+    const body = req.body || {};
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
     if (!['pending', 'confirmed', 'awaiting_payment', 'paid'].includes(order.status)) {
       return res.status(409).json({ message: 'Order must be active before uploading receipt.' });
     }
 
-    if (!req.file && !req.body.receiptUrl) {
+    if (!req.file && !body.receiptUrl) {
       return res.status(400).json({ message: 'Please upload a receipt image.' });
     }
 
     if (req.file) {
       order.receiptUrl = `/uploads/receipts/${req.file.filename}`;
-    } else if (req.body.receiptUrl) {
-      order.receiptUrl = req.body.receiptUrl;
+    } else if (body.receiptUrl) {
+      order.receiptUrl = body.receiptUrl;
     }
 
-    const { paymentMethod, senderNote, transactionRef } = req.body;
+    const { paymentMethod, senderNote, transactionRef } = body;
     if (paymentMethod && ['ccp_baridimob', 'redotpay_usdt'].includes(paymentMethod)) {
       order.paymentMethod = paymentMethod;
     }

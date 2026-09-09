@@ -28,6 +28,15 @@ const courseSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  lessons: [
+    {
+      id: { type: Number, required: true },
+      title: { type: String, required: true },
+      outcome: { type: String, default: '' },
+      bunnyVideoId: { type: String, default: '' },
+      durationSeconds: { type: Number, default: 0 },
+    },
+  ],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Course', courseSchema);

@@ -1,4 +1,5 @@
 const Course = require('../models/Course');
+const bunnyService = require('../services/bunnyService');
 
 exports.getCourses = async (req, res) => {
   try {
@@ -57,3 +58,54 @@ exports.deleteCourse = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// ── GET /api/courses/stream/:videoId ────────────────────────────────
+// Delivers the official Bunny.net MediaCage Basic DRM embed URL to authorized buyers
+exports.getStreamUrl = async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    if (!videoId) {
+      return res.status(400).json({ message: 'Video ID is required.' });
+    }
+
+    // 1. Account must not be blocked (e.g. from leak reports)
+    if (req.user.isBlocked) {
+      return res.status(403).json({ message: 'Account is blocked. Please contact support.' });
+    }
+
+    // 2. Only admins or verified course buyers/members can access protected video streams
+    const isEligible = req.user.role === 'admin' || ['buyer', 'member'].includes(req.user.buyerStatus);
+    if (!isEligible) {
+      return res.status(403).json({
+        message: 'Access restricted. You must have an active course purchase to watch this video.',
+      });
+    }
+
+    // 3. Generate Bunny MediaCage DRM embed URL (without token auth to prevent conflict with DRM)
+    const embedUrl = bunnyService.getMediaCageEmbedUrl(videoId);
+
+    res.json({
+      videoId,
+      embedUrl,
+      libraryId: bunnyService.LIBRARY_ID,
+      drmType: 'MediaCage Basic DRM',
+      protected: true,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ── GET /api/courses/bunny/videos (Admin only) ──────────────────────
+// Browse Bunny.net Video Library contents to link video IDs with lessons
+exports.getBunnyVideos = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const itemsPerPage = parseInt(req.query.itemsPerPage, 10) || 50;
+    const data = await bunnyService.listVideos(page, itemsPerPage);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
