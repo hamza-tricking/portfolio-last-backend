@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const Order = require('../models/Order');
+const ProjectOrder = require('../models/ProjectOrder');
 
 const generateAccessToken = (user) => {
   return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -35,6 +36,10 @@ exports.register = async (req, res) => {
     // Link any existing orders that match the phone number
     if (phone) {
       await Order.updateMany(
+        { phone: phone, user: null },
+        { $set: { user: user._id } }
+      );
+      await ProjectOrder.updateMany(
         { phone: phone, user: null },
         { $set: { user: user._id } }
       );
