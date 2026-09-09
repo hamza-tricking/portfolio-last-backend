@@ -1,3 +1,5 @@
 node_modules/
 .env
 seedAdmin.js
+public/uploads/receipts/*
+!public/uploads/receipts/.gitkeep

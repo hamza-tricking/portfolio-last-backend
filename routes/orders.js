@@ -1,7 +1,50 @@
 const router = require('express').Router();
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const multer = require('multer');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
+
+// Receipt uploads configuration
+const receiptsDir = path.join(__dirname, '../public/uploads/receipts');
+if (!fs.existsSync(receiptsDir)) {
+  fs.mkdirSync(receiptsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, receiptsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const cleanId = req.params.id ? String(req.params.id).replace(/[^a-zA-Z0-9]/g, '') : 'order';
+    const randomHex = crypto.randomBytes(6).toString('hex');
+    cb(null, `receipt-${cleanId}-${Date.now()}-${randomHex}${ext}`);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+  const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedMime.includes(file.mimetype) && allowedExt.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files (JPG, PNG, WEBP) are allowed as receipt proof.'), false);
+  }
+};
+
+const uploadReceipt = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 1,
+  },
+});
 
 // ── Helper: trigger referral bonuses after a purchase is confirmed ──
 async function handleReferralOnPurchase(order) {
@@ -139,26 +182,60 @@ router.put('/:id/step2', optionalAuth, async (req, res) => {
   }
 });
 
-// ── STEP 3: Upload receipt (simulated — store filename) ───────────
+// ── STEP 3: Upload receipt (file upload with validation) ───────────
 // PUT /api/orders/:id/receipt
-router.put('/:id/receipt', optionalAuth, async (req, res) => {
+router.put('/:id/receipt', optionalAuth, (req, res, next) => {
+  uploadReceipt.single('receipt')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'Receipt image size must be less than 10MB.' });
+      }
+      return res.status(400).json({ message: err.message });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
-    const { receiptUrl } = req.body; // frontend sends filename / mock url
-
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
     if (!['pending', 'confirmed', 'awaiting_payment', 'paid'].includes(order.status)) {
       return res.status(409).json({ message: 'Order must be active before uploading receipt.' });
     }
 
-    order.receiptUrl = receiptUrl || 'mock-receipt.jpg';
+    if (!req.file && !req.body.receiptUrl) {
+      return res.status(400).json({ message: 'Please upload a receipt image.' });
+    }
+
+    if (req.file) {
+      order.receiptUrl = `/uploads/receipts/${req.file.filename}`;
+    } else if (req.body.receiptUrl) {
+      order.receiptUrl = req.body.receiptUrl;
+    }
+
+    const { paymentMethod, senderNote, transactionRef } = req.body;
+    if (paymentMethod && ['ccp_baridimob', 'redotpay_usdt'].includes(paymentMethod)) {
+      order.paymentMethod = paymentMethod;
+    }
+
+    const note = senderNote || transactionRef;
+    if (note !== undefined) {
+      order.senderNote = String(note).slice(0, 500);
+    }
+
     order.status = 'awaiting_payment';
     if (req.user && !order.user) {
       order.user = req.user._id;
     }
     await order.save();
 
-    res.json({ message: 'Receipt uploaded. Awaiting admin verification.', orderId: order._id });
+    res.json({
+      message: 'Receipt uploaded. Awaiting admin verification.',
+      orderId: order._id,
+      receiptUrl: order.receiptUrl,
+      paymentMethod: order.paymentMethod,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

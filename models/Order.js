@@ -11,7 +11,13 @@ const orderSchema = new mongoose.Schema({
   idConsentGiven:    { type: Boolean, default: false },
 
   // Payment
-  receiptUrl:  { type: String, default: '' },   // mock: filename saved
+  paymentMethod: {
+    type: String,
+    enum: ['ccp_baridimob', 'redotpay_usdt'],
+    default: 'ccp_baridimob',
+  },
+  receiptUrl:  { type: String, default: '' },
+  senderNote:  { type: String, default: '' },
   amountUSD:   { type: Number, default: 100 },
 
   // Lifecycle
