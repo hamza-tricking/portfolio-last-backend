@@ -34,10 +34,10 @@ router.post('/step1', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
-    // If an existing order ID is provided (e.g. going back to step 1 and editing)
+    // If an existing in-progress order ID is provided (e.g. going back to step 1 and editing)
     if (orderId) {
       const order = await Order.findById(orderId);
-      if (order && !['expired', 'cancelled'].includes(order.status)) {
+      if (order && ['pending', 'awaiting_payment', 'confirmed'].includes(order.status)) {
         order.fullName = fullName;
         order.phone = phone;
         order.address = address;
@@ -49,8 +49,12 @@ router.post('/step1', optionalAuth, async (req, res) => {
       }
     }
 
-    // Duplicate phone check: if active order exists, update it rather than throwing 409
-    const existing = await Order.findOne({ phone, status: { $nin: ['expired', 'cancelled'] } });
+    // In-progress order check: if an active in-progress order exists for this phone, update it
+    const existing = await Order.findOne({ 
+      phone, 
+      status: { $in: ['pending', 'awaiting_payment', 'confirmed'] } 
+    }).sort({ createdAt: -1 });
+
     if (existing) {
       existing.fullName = fullName;
       existing.address = address;
@@ -143,7 +147,7 @@ router.put('/:id/receipt', optionalAuth, async (req, res) => {
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
-    if (!['pending', 'confirmed', 'awaiting_payment'].includes(order.status)) {
+    if (!['pending', 'confirmed', 'awaiting_payment', 'paid'].includes(order.status)) {
       return res.status(409).json({ message: 'Order must be active before uploading receipt.' });
     }
 
