@@ -1,9 +1,50 @@
 const User = require('../models/User');
+const Order = require('../models/Order');
 
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-__v');
-    res.json(users);
+    const users = await User.find().select('-__v').sort({ createdAt: -1 });
+    const orders = await Order.find().sort({ createdAt: -1 });
+
+    const usersWithOrders = users.map(user => {
+      const userObj = user.toObject();
+      const userOrders = orders.filter(o => 
+        (o.user && o.user.toString() === user._id.toString()) || 
+        (o.phone && user.phone && o.phone.trim() === user.phone.trim())
+      );
+
+      const hasCourseOrder = userOrders.length > 0;
+      const latestOrder = userOrders[0] || null;
+
+      return {
+        ...userObj,
+        hasCourseOrder,
+        courseOrdersCount: userOrders.length,
+        latestCourseOrder: latestOrder ? {
+          _id: latestOrder._id,
+          status: latestOrder.status,
+          amountUSD: latestOrder.amountUSD,
+          receiptUrl: latestOrder.receiptUrl,
+          watermarkIdNumber: latestOrder.watermarkIdNumber,
+          idConsentGiven: latestOrder.idConsentGiven,
+          adminNote: latestOrder.adminNote,
+          createdAt: latestOrder.createdAt,
+          updatedAt: latestOrder.updatedAt,
+        } : null,
+        courseOrders: userOrders.map(o => ({
+          _id: o._id,
+          status: o.status,
+          amountUSD: o.amountUSD,
+          receiptUrl: o.receiptUrl,
+          watermarkIdNumber: o.watermarkIdNumber,
+          idConsentGiven: o.idConsentGiven,
+          adminNote: o.adminNote,
+          createdAt: o.createdAt,
+        })),
+      };
+    });
+
+    res.json(usersWithOrders);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -15,7 +56,24 @@ exports.getUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+    const orders = await Order.find({
+      $or: [
+        { user: user._id },
+        { phone: user.phone }
+      ]
+    }).sort({ createdAt: -1 });
+
+    const userObj = user.toObject();
+    const hasCourseOrder = orders.length > 0;
+    const latestOrder = orders[0] || null;
+
+    res.json({
+      ...userObj,
+      hasCourseOrder,
+      courseOrdersCount: orders.length,
+      latestCourseOrder: latestOrder,
+      courseOrders: orders,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

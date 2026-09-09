@@ -24,21 +24,42 @@ async function handleReferralOnPurchase(order) {
   await referrer.save();
 }
 
-// ── STEP 1: Submit contact details (public) ───────────────────────
+// ── STEP 1: Submit contact details (public or authenticated) ──────
 // POST /api/orders/step1
 router.post('/step1', optionalAuth, async (req, res) => {
   try {
-    const { fullName, phone, address, referralCode } = req.body;
+    const { fullName, phone, address, referralCode, orderId } = req.body;
 
     if (!fullName || !phone || !address) {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
-    // Duplicate phone check
+    // If an existing order ID is provided (e.g. going back to step 1 and editing)
+    if (orderId) {
+      const order = await Order.findById(orderId);
+      if (order && !['expired', 'cancelled'].includes(order.status)) {
+        order.fullName = fullName;
+        order.phone = phone;
+        order.address = address;
+        if (req.user && !order.user) {
+          order.user = req.user._id;
+        }
+        await order.save();
+        return res.json({ message: 'Order updated.', orderId: order._id });
+      }
+    }
+
+    // Duplicate phone check: if active order exists, update it rather than throwing 409
     const existing = await Order.findOne({ phone, status: { $nin: ['expired', 'cancelled'] } });
     if (existing) {
-      return res.status(409).json({
-        message: 'You already have an active order. We will call you soon.',
+      existing.fullName = fullName;
+      existing.address = address;
+      if (req.user && !existing.user) {
+        existing.user = req.user._id;
+      }
+      await existing.save();
+      return res.json({
+        message: 'Order updated. We will call you soon.',
         orderId: existing._id,
       });
     }
@@ -65,6 +86,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
       fullName,
       phone,
       address,
+      user: req.user ? req.user._id : null,
       referrer: referrer ? referrer._id : null,
     });
 
@@ -75,9 +97,9 @@ router.post('/step1', optionalAuth, async (req, res) => {
   }
 });
 
-// ── STEP 2: Add identity / watermark details (public) ─────────────
+// ── STEP 2: Add identity / watermark details ──────────────────────
 // PUT /api/orders/:id/step2
-router.put('/:id/step2', async (req, res) => {
+router.put('/:id/step2', optionalAuth, async (req, res) => {
   try {
     const { watermarkIdNumber, idConsentGiven } = req.body;
 
@@ -93,7 +115,19 @@ router.put('/:id/step2', async (req, res) => {
 
     order.watermarkIdNumber = watermarkIdNumber;
     order.idConsentGiven = true;
+    if (req.user && !order.user) {
+      order.user = req.user._id;
+    }
     await order.save();
+
+    // If logged-in user hasn't saved watermark info yet, save it to their profile
+    if (req.user && !req.user.watermarkIdNumber) {
+      req.user.watermarkIdNumber = watermarkIdNumber;
+      if (!req.user.watermarkName) {
+        req.user.watermarkName = order.fullName || req.user.fullName;
+      }
+      await req.user.save();
+    }
 
     res.json({ message: 'Identity details saved.', orderId: order._id });
   } catch (err) {
@@ -103,7 +137,7 @@ router.put('/:id/step2', async (req, res) => {
 
 // ── STEP 3: Upload receipt (simulated — store filename) ───────────
 // PUT /api/orders/:id/receipt
-router.put('/:id/receipt', async (req, res) => {
+router.put('/:id/receipt', optionalAuth, async (req, res) => {
   try {
     const { receiptUrl } = req.body; // frontend sends filename / mock url
 
@@ -115,6 +149,9 @@ router.put('/:id/receipt', async (req, res) => {
 
     order.receiptUrl = receiptUrl || 'mock-receipt.jpg';
     order.status = 'awaiting_payment';
+    if (req.user && !order.user) {
+      order.user = req.user._id;
+    }
     await order.save();
 
     res.json({ message: 'Receipt uploaded. Awaiting admin verification.', orderId: order._id });

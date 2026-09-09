@@ -21,6 +21,7 @@ const projectOrderSchema = new mongoose.Schema({
 
   // Linkage
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  isRegisteredUser: { type: Boolean, default: false },
 
   // Admin notes
   adminNote: { type: String, default: '' },

@@ -74,6 +74,18 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Link any existing orders that match the phone number
+    if (user.phone) {
+      await Order.updateMany(
+        { phone: user.phone, user: null },
+        { $set: { user: user._id } }
+      );
+      await ProjectOrder.updateMany(
+        { phone: user.phone, user: null },
+        { $set: { user: user._id } }
+      );
+    }
+
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
