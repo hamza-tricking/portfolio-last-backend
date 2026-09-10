@@ -250,8 +250,8 @@ router.put('/:id/receipt', optionalAuth, (req, res, next) => {
 router.get('/', protect, adminOnly, async (req, res) => {
   try {
     const orders = await Order.find()
-      .populate('user', 'fullName email phone')
-      .populate('referrer', 'fullName referralCode')
+      .populate('user', 'fullName email phone username')
+      .populate('referrer', 'fullName referralCode username')
       .sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
@@ -262,7 +262,18 @@ router.get('/', protect, adminOnly, async (req, res) => {
 // ── GET /api/orders/my — user's own order status ──────────────────
 router.get('/my', protect, async (req, res) => {
   try {
-    const order = await Order.findOne({ user: req.user._id }).sort({ createdAt: -1 });
+    const cleanPhone = req.user.phone ? String(req.user.phone).replace(/\s+/g, '') : '';
+    const order = await Order.findOne({
+      $or: [
+        { user: req.user._id },
+        ...(cleanPhone ? [
+          { phone: req.user.phone },
+          { phone: cleanPhone },
+          { phone: cleanPhone.replace(/^\+213/, '0') },
+          { phone: cleanPhone.replace(/^0/, '+213') },
+        ] : [])
+      ]
+    }).sort({ createdAt: -1 });
     res.json(order || null);
   } catch (err) {
     res.status(500).json({ message: err.message });
