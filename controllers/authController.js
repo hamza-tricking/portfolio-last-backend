@@ -121,3 +121,44 @@ exports.refresh = async (req, res) => {
     res.status(401).json({ message: 'Invalid refresh token' });
   }
 };
+
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Auto-sync: if user is still marked 'registered' but has a paid or delivered order, activate buyer access
+    if (user.buyerStatus === 'registered') {
+      const paidOrder = await Order.findOne({
+        $or: [
+          { user: user._id },
+          { phone: user.phone }
+        ],
+        status: { $in: ['paid', 'delivered'] }
+      });
+
+      if (paidOrder) {
+        user.buyerStatus = 'buyer';
+        if (!user.watermarkName) user.watermarkName = paidOrder.fullName;
+        if (!user.watermarkIdNumber && paidOrder.watermarkIdNumber) {
+          user.watermarkIdNumber = paidOrder.watermarkIdNumber;
+        }
+        if (!user.qaCredits || (user.qaCredits.text === 0 && user.qaCredits.video === 0)) {
+          user.qaCredits = { text: 2, video: 1 };
+        }
+        await user.save();
+
+        if (!paidOrder.user) {
+          paidOrder.user = user._id;
+          await paidOrder.save();
+        }
+      }
+    }
+
+    res.json({ user: sanitizeUser(user) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

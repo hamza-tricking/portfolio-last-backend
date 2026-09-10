@@ -300,21 +300,42 @@ router.put('/:id/status', protect, adminOnly, async (req, res) => {
     order.status = status;
     if (adminNote) order.adminNote = adminNote;
 
-    // Deliver: bind the order to a user account and activate buyer status
-    if (status === 'delivered' && prev !== 'delivered') {
-      // Try to find user by phone
-      const buyer = await User.findOne({ phone: order.phone });
+    // Paid or Delivered: bind the order to a user account and activate buyer status & course access
+    if (['paid', 'delivered'].includes(status)) {
+      // Find buyer by linked user first, then by phone
+      let buyer = null;
+      if (order.user) {
+        buyer = await User.findById(order.user);
+      }
+      if (!buyer && order.phone) {
+        const cleanPhone = String(order.phone).replace(/\s+/g, '');
+        buyer = await User.findOne({
+          $or: [
+            { phone: order.phone },
+            { phone: cleanPhone },
+            { phone: cleanPhone.replace(/^\+213/, '0') },
+            { phone: cleanPhone.replace(/^0/, '+213') },
+          ]
+        });
+      }
+
       if (buyer) {
         order.user = buyer._id;
-        buyer.buyerStatus = 'buyer';
-        buyer.watermarkName = order.fullName;
-        buyer.watermarkIdNumber = order.watermarkIdNumber;
-        buyer.qaCredits = { text: 2, video: 1 };
+        if (buyer.buyerStatus === 'registered') {
+          buyer.buyerStatus = 'buyer';
+        }
+        if (!buyer.watermarkName) buyer.watermarkName = order.fullName;
+        if (!buyer.watermarkIdNumber && order.watermarkIdNumber) {
+          buyer.watermarkIdNumber = order.watermarkIdNumber;
+        }
+        if (!buyer.qaCredits || (buyer.qaCredits.text === 0 && buyer.qaCredits.video === 0)) {
+          buyer.qaCredits = { text: 2, video: 1 };
+        }
         await buyer.save();
       }
 
-      // Credit purchase bonuses to referrer
-      if (order.referrer) {
+      // Credit purchase bonuses to referrer once when entering paid or delivered
+      if (order.referrer && !['paid', 'delivered'].includes(prev)) {
         await handleReferralOnPurchase({ ...order.toObject(), user: order.user });
       }
     }
