@@ -159,6 +159,19 @@ exports.getMe = async (req, res) => {
           await paidOrder.save();
         }
       }
+    } else if (user.buyerStatus === 'buyer' && user.role !== 'admin') {
+      const paidOrder = await Order.findOne({
+        $or: [
+          { user: user._id },
+          { phone: user.phone }
+        ],
+        status: { $in: ['paid', 'delivered'] }
+      });
+
+      if (!paidOrder) {
+        user.buyerStatus = 'registered';
+        await user.save();
+      }
     }
 
     res.json({ user: sanitizeUser(user) });

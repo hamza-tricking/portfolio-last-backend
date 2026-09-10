@@ -22,10 +22,32 @@ router.get('/stats', protect, async (req, res) => {
       .reduce((s, e) => s + e.amount, 0);
 
     // Milestone progress (capped at 100)
-    const milestoneProgress = Math.min(totalEarned, 100);
-    const milestoneReached = user.referredPurchaseCount >= 10;
+    const milestoneProgress = Math.min((totalEarned / 6) * 100, 100);
+    const milestoneReached = user.referredPurchaseCount >= 4;
 
-    const referralUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/courses?ref=${user.referralCode}`;
+    // Detect base URL: from process.env.FRONTEND_URL, or request Origin / Referer, or host header
+    const origin = req.get('origin');
+    const referer = req.get('referer');
+    let detectedBaseUrl = process.env.FRONTEND_URL;
+
+    if (!detectedBaseUrl) {
+      if (origin && !origin.includes('localhost')) {
+        detectedBaseUrl = origin;
+      } else if (referer && !referer.includes('localhost')) {
+        try {
+          const parsed = new URL(referer);
+          detectedBaseUrl = `${parsed.protocol}//${parsed.host}`;
+        } catch (_) {}
+      } else if (origin) {
+        detectedBaseUrl = origin;
+      } else {
+        const host = req.get('host');
+        const proto = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+        detectedBaseUrl = host ? `${proto}://${host}` : 'https://hamza.dmtart.pro';
+      }
+    }
+
+    const referralUrl = `${detectedBaseUrl.replace(/\/$/, '')}/courses?ref=${user.referralCode}`;
 
     res.json({
       referralCode: user.referralCode,

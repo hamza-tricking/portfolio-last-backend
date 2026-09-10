@@ -53,9 +53,8 @@ async function handleReferralOnPurchase(order) {
   const referrer = await User.findById(order.referrer);
   if (!referrer || referrer.isBlocked) return;
 
-  const isFirstPurchase = referrer.referredPurchaseCount === 0;
-  const amount = isFirstPurchase ? 8 : 10;
-  const type = isFirstPurchase ? 'first_purchase' : 'purchase';
+  const amount = 1;
+  const type = 'purchase';
 
   referrer.earnings.push({
     type,
@@ -337,6 +336,57 @@ router.put('/:id/status', protect, adminOnly, async (req, res) => {
       // Credit purchase bonuses to referrer once when entering paid or delivered
       if (order.referrer && !['paid', 'delivered'].includes(prev)) {
         await handleReferralOnPurchase({ ...order.toObject(), user: order.user });
+      }
+    }
+
+    // Transitioning OUT of paid or delivered (e.g. reverted to awaiting_payment, confirmed, or cancelled)
+    if (!['paid', 'delivered'].includes(status) && ['paid', 'delivered'].includes(prev)) {
+      let buyer = null;
+      if (order.user) {
+        buyer = await User.findById(order.user);
+      }
+      if (!buyer && order.phone) {
+        const cleanPhone = String(order.phone).replace(/\s+/g, '');
+        buyer = await User.findOne({
+          $or: [
+            { phone: order.phone },
+            { phone: cleanPhone },
+            { phone: cleanPhone.replace(/^\+213/, '0') },
+            { phone: cleanPhone.replace(/^0/, '+213') },
+          ]
+        });
+      }
+
+      if (buyer && buyer.role !== 'admin') {
+        // Check if user has ANY other order that is paid or delivered
+        const otherPaidOrder = await Order.findOne({
+          _id: { $ne: order._id },
+          $or: [
+            { user: buyer._id },
+            { phone: buyer.phone }
+          ],
+          status: { $in: ['paid', 'delivered'] }
+        });
+
+        if (!otherPaidOrder) {
+          buyer.buyerStatus = 'registered';
+          await buyer.save();
+        }
+      }
+
+      // Revert referrer purchase count & mark pending earning as forfeited
+      if (order.referrer) {
+        const referrer = await User.findById(order.referrer);
+        if (referrer) {
+          referrer.referredPurchaseCount = Math.max(0, (referrer.referredPurchaseCount || 1) - 1);
+          const pendingEarning = referrer.earnings.find(
+            (e) => e.type === 'purchase' && e.status === 'pending_payout' && String(e.referredUser) === String(order.user || buyer?._id)
+          );
+          if (pendingEarning) {
+            pendingEarning.status = 'forfeited';
+          }
+          await referrer.save();
+        }
       }
     }
 
