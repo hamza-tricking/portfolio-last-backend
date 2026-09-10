@@ -68,12 +68,19 @@ async function handleReferralOnPurchase(order) {
 
 // ── CHECK REFERRAL CODE & DISCOUNT ──────────────────────────────
 // GET /api/orders/check-referral/:code
-router.get('/check-referral/:code', async (req, res) => {
+router.get('/check-referral/:code', optionalAuth, async (req, res) => {
   try {
     const raw = (req.params.code || '').trim().toUpperCase();
     if (!raw) return res.json({ valid: false });
-    const referrerUser = await User.findOne({ referralCode: raw }).select('fullName username referralCode');
+    const referrerUser = await User.findOne({ referralCode: raw }).select('fullName username referralCode phone');
     if (referrerUser) {
+      if (req.user && (referrerUser._id.equals(req.user._id) || referrerUser.referralCode === req.user.referralCode)) {
+        return res.json({
+          valid: false,
+          isSelfReferral: true,
+          message: 'لا يمكنك استخدام كود الإحالة الخاص بك (الإحالة الذاتية غير مسموحة).'
+        });
+      }
       return res.json({
         valid: true,
         referrerName: referrerUser.fullName || referrerUser.username || 'عضو مميز',
@@ -98,12 +105,28 @@ router.post('/step1', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
+    // Block logged-in users who already own the course from placing another order on their account
+    if (req.user && ['buyer', 'member'].includes(req.user.buyerStatus)) {
+      return res.status(400).json({
+        message: 'أنت مسجل الدخول وتمتلك الدورة بالفعل في حسابك. لا يمكنك إرسال طلب شراء جديد لحسابك نفسه. إذا كنت تريد شراء الدورة لشخص آخر، يرجى تسجيل الخروج أولاً.'
+      });
+    }
+
     // Resolve referrer if a referral code was supplied
     let referrer = null;
     let amountUSD = 6;
     if (referralCode && typeof referralCode === 'string' && referralCode.trim()) {
-      referrer = await User.findOne({ referralCode: referralCode.trim().toUpperCase() });
-      if (referrer) {
+      const cleanRef = referralCode.trim().toUpperCase();
+      const potentialReferrer = await User.findOne({ referralCode: cleanRef });
+      
+      const isSelf = potentialReferrer && (
+        (req.user && potentialReferrer._id.equals(req.user._id)) ||
+        (req.user && potentialReferrer.referralCode === req.user.referralCode) ||
+        (potentialReferrer.phone && phone && potentialReferrer.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))
+      );
+
+      if (potentialReferrer && !isSelf) {
+        referrer = potentialReferrer;
         amountUSD = 5; // $1 referral discount applied ($5 instead of $6)
         // Handle one-time $2 registration bonus (first registration per referrer)
         if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
@@ -308,17 +331,31 @@ router.get('/', protect, adminOnly, async (req, res) => {
 router.get('/my', protect, async (req, res) => {
   try {
     const cleanPhone = req.user.phone ? String(req.user.phone).replace(/\s+/g, '') : '';
-    const order = await Order.findOne({
+    const phoneFilter = cleanPhone ? [
+      { phone: req.user.phone },
+      { phone: cleanPhone },
+      { phone: cleanPhone.replace(/^\+213/, '0') },
+      { phone: cleanPhone.replace(/^0/, '+213') },
+    ] : [];
+
+    // Prioritize paid or delivered order so user's course access is never shadowed
+    let order = await Order.findOne({
       $or: [
         { user: req.user._id },
-        ...(cleanPhone ? [
-          { phone: req.user.phone },
-          { phone: cleanPhone },
-          { phone: cleanPhone.replace(/^\+213/, '0') },
-          { phone: cleanPhone.replace(/^0/, '+213') },
-        ] : [])
-      ]
+        ...phoneFilter,
+      ],
+      status: { $in: ['paid', 'delivered'] }
     }).sort({ createdAt: -1 });
+
+    if (!order) {
+      order = await Order.findOne({
+        $or: [
+          { user: req.user._id },
+          ...phoneFilter,
+        ]
+      }).sort({ createdAt: -1 });
+    }
+
     res.json(order || null);
   } catch (err) {
     res.status(500).json({ message: err.message });
