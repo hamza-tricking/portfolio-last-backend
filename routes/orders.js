@@ -66,6 +66,28 @@ async function handleReferralOnPurchase(order) {
   await referrer.save();
 }
 
+// ── CHECK REFERRAL CODE & DISCOUNT ──────────────────────────────
+// GET /api/orders/check-referral/:code
+router.get('/check-referral/:code', async (req, res) => {
+  try {
+    const raw = (req.params.code || '').trim().toUpperCase();
+    if (!raw) return res.json({ valid: false });
+    const referrerUser = await User.findOne({ referralCode: raw }).select('fullName username referralCode');
+    if (referrerUser) {
+      return res.json({
+        valid: true,
+        referrerName: referrerUser.fullName || referrerUser.username || 'عضو مميز',
+        discountUSD: 1,
+        finalPriceUSD: 5,
+        finalPriceDZD: 1250,
+      });
+    }
+    return res.json({ valid: false });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
 // ── STEP 1: Submit contact details (public or authenticated) ──────
 // POST /api/orders/step1
 router.post('/step1', optionalAuth, async (req, res) => {
@@ -76,45 +98,13 @@ router.post('/step1', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
-    // If an existing in-progress order ID is provided (e.g. going back to step 1 and editing)
-    if (orderId) {
-      const order = await Order.findById(orderId);
-      if (order && ['pending', 'awaiting_payment', 'confirmed'].includes(order.status)) {
-        order.fullName = fullName;
-        order.phone = phone;
-        order.address = address;
-        if (req.user && !order.user) {
-          order.user = req.user._id;
-        }
-        await order.save();
-        return res.json({ message: 'Order updated.', orderId: order._id });
-      }
-    }
-
-    // In-progress order check: if an active in-progress order exists for this phone, update it
-    const existing = await Order.findOne({ 
-      phone, 
-      status: { $in: ['pending', 'awaiting_payment', 'confirmed'] } 
-    }).sort({ createdAt: -1 });
-
-    if (existing) {
-      existing.fullName = fullName;
-      existing.address = address;
-      if (req.user && !existing.user) {
-        existing.user = req.user._id;
-      }
-      await existing.save();
-      return res.json({
-        message: 'Order updated. We will call you soon.',
-        orderId: existing._id,
-      });
-    }
-
     // Resolve referrer if a referral code was supplied
     let referrer = null;
-    if (referralCode) {
-      referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
+    let amountUSD = 6;
+    if (referralCode && typeof referralCode === 'string' && referralCode.trim()) {
+      referrer = await User.findOne({ referralCode: referralCode.trim().toUpperCase() });
       if (referrer) {
+        amountUSD = 5; // $1 referral discount applied ($5 instead of $6)
         // Handle one-time $2 registration bonus (first registration per referrer)
         if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
           referrer.earnings.push({
@@ -128,15 +118,70 @@ router.post('/step1', optionalAuth, async (req, res) => {
       }
     }
 
+    // If an existing in-progress order ID is provided (e.g. going back to step 1 and editing)
+    if (orderId) {
+      const order = await Order.findById(orderId);
+      if (order && ['pending', 'awaiting_payment', 'confirmed'].includes(order.status)) {
+        order.fullName = fullName;
+        order.phone = phone;
+        order.address = address;
+        if (referrer) {
+          order.referrer = referrer._id;
+          order.amountUSD = 5;
+        }
+        if (req.user && !order.user) {
+          order.user = req.user._id;
+        }
+        await order.save();
+        return res.json({
+          message: 'Order updated.',
+          orderId: order._id,
+          amountUSD: order.amountUSD,
+          discountApplied: order.amountUSD === 5,
+        });
+      }
+    }
+
+    // In-progress order check: if an active in-progress order exists for this phone, update it
+    const existing = await Order.findOne({ 
+      phone, 
+      status: { $in: ['pending', 'awaiting_payment', 'confirmed'] } 
+    }).sort({ createdAt: -1 });
+
+    if (existing) {
+      existing.fullName = fullName;
+      existing.address = address;
+      if (referrer) {
+        existing.referrer = referrer._id;
+        existing.amountUSD = 5;
+      }
+      if (req.user && !existing.user) {
+        existing.user = req.user._id;
+      }
+      await existing.save();
+      return res.json({
+        message: 'Order updated. We will call you soon.',
+        orderId: existing._id,
+        amountUSD: existing.amountUSD,
+        discountApplied: existing.amountUSD === 5,
+      });
+    }
+
     const order = await Order.create({
       fullName,
       phone,
       address,
       user: req.user ? req.user._id : null,
       referrer: referrer ? referrer._id : null,
+      amountUSD,
     });
 
-    res.status(201).json({ message: 'Order created. We will call you to confirm.', orderId: order._id });
+    res.status(201).json({
+      message: 'Order created. We will call you to confirm.',
+      orderId: order._id,
+      amountUSD: order.amountUSD,
+      discountApplied: order.amountUSD === 5,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
