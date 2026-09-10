@@ -1,6 +1,6 @@
 const https = require('https');
 
-const LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '748648';
+const LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '748666';
 const CDN_HOSTNAME = process.env.BUNNY_CDN_HOSTNAME || 'vz-99f60e1e-149.b-cdn.net';
 const API_KEY = process.env.BUNNY_API_KEY;
 
