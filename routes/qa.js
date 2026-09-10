@@ -36,31 +36,33 @@ router.post('/ask', protect, async (req, res) => {
       return res.status(403).json({ message: 'Only course buyers can ask questions.' });
     }
 
-    // Check free credits
+    // Check free credits strictly — no more questions when quota is finished
     const creditKey = type; // 'text' or 'video'
-    const usedFreeCredit = user.qaCredits[creditKey] > 0;
-
-    if (usedFreeCredit) {
-      user.qaCredits[creditKey] -= 1;
-      await user.save();
+    const availableCredits = user.qaCredits ? (user.qaCredits[creditKey] || 0) : 0;
+    if (availableCredits <= 0) {
+      return res.status(403).json({
+        message: `لقد استنفدت رصيدك المتاح من ${type === 'text' ? 'الأسئلة النصية' : 'أسئلة الفيديو'}. لا يمكنك إرسال المزيد من الأسئلة.`
+      });
     }
 
-    const priceUSD = usedFreeCredit ? 0 : (type === 'text' ? TEXT_PRICE_USD : VIDEO_PRICE_USD);
+    user.qaCredits[creditKey] = availableCredits - 1;
+    await user.save();
 
     const request = await QaRequest.create({
       user: user._id,
       type,
       questionText,
-      usedFreeCredit,
-      isPaid: usedFreeCredit, // free credits are already "paid"
-      priceUSD,
+      usedFreeCredit: true,
+      isPaid: true,
+      priceUSD: 0,
     });
 
-    let message = usedFreeCredit
-      ? `Question submitted using a free ${type} credit.`
-      : `Question submitted. Please pay $${priceUSD} via CCP and upload the receipt.`;
-
-    res.status(201).json({ message, requestId: request._id, usedFreeCredit, priceUSD });
+    res.status(201).json({
+      message: 'تم إرسال سؤالك بنجاح! سيتم الرد عليك قريباً.',
+      requestId: request._id,
+      usedFreeCredit: true,
+      priceUSD: 0,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -113,13 +115,11 @@ router.put('/admin/:id/answer', protect, adminOnly, async (req, res) => {
     const { responseText, responseVideoUrl } = req.body;
     const request = await QaRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Request not found.' });
-    if (!request.isPaid) {
-      return res.status(400).json({ message: 'Cannot answer an unpaid request.' });
-    }
 
     request.responseText = responseText || '';
     request.responseVideoUrl = responseVideoUrl || '';
     request.status = 'answered';
+    request.isPaid = true;
     await request.save();
     res.json({ message: 'Answer submitted.', request });
   } catch (err) {
