@@ -4,7 +4,7 @@ const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect);
 
-router.post('/', adminOnly, sendMessage);
+router.post('/', sendMessage);
 router.get('/', adminOnly, getAllMessages);
 router.get('/my', getMyMessages);
 router.get('/:id', getMessage);
