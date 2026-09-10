@@ -17,6 +17,13 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
+    // Throttle lastActiveAt updates to max once every 2 minutes to reduce DB writes
+    const now = new Date();
+    if (!req.user.lastActiveAt || (now - req.user.lastActiveAt) > 2 * 60 * 1000) {
+      req.user.lastActiveAt = now;
+      await User.updateOne({ _id: req.user._id }, { $set: { lastActiveAt: now } });
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Not authorized, token invalid' });

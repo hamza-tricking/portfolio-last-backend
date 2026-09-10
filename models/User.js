@@ -93,6 +93,18 @@ const userSchema = new mongoose.Schema({
     text: { type: Number, default: 0 },
     video: { type: Number, default: 0 },
   },
+
+  // ── Course Progress & Activity Tracking ───────────────────────────
+  courseProgress: [{
+    lessonId: { type: Number, required: true },
+    watchedSeconds: { type: Number, default: 0 },
+    isCompleted: { type: Boolean, default: false },
+    lastWatchedAt: { type: Date, default: Date.now }
+  }],
+
+  lastLoginAt: { type: Date, default: null },
+  lastActiveAt: { type: Date, default: null },
+
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

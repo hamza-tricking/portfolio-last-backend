@@ -13,6 +13,12 @@ exports.getUsers = async (req, res) => {
         (o.phone && user.phone && o.phone.trim() === user.phone.trim())
       );
 
+      // Referral stats
+      const referredUsers = users.filter(u => u.referredBy && u.referredBy.toString() === user._id.toString());
+      const referredBuyersCount = referredUsers.filter(u => ['buyer', 'member'].includes(u.buyerStatus)).length;
+      userObj.referredRegistrationsCount = referredUsers.length;
+      userObj.referredBuyersCount = referredBuyersCount;
+
       const hasCourseOrder = userOrders.length > 0;
       const latestOrder = userOrders[0] || null;
 
