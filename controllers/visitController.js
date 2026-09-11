@@ -1,4 +1,5 @@
 const PageVisit = require('../models/PageVisit');
+const User = require('../models/User');
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -74,15 +75,42 @@ exports.recordVisit = async (req, res) => {
     const rawIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
     const acceptLang = req.headers['accept-language'] || language || '';
     
-    // Identity stitching: if user is logged in, link their past anonymous visits
-    if (req.user && visitorId) {
+    // 1. Resolve User ID from token or client payload or previous memory
+    let userId = req.user?._id || null;
+    let isRegistered = !!req.user;
+    let buyerStatus = req.user?.buyerStatus || null;
+
+    if (!userId && req.body.userId) {
+      try {
+        const found = await User.findById(req.body.userId).lean();
+        if (found) {
+          userId = found._id;
+          isRegistered = true;
+          buyerStatus = found.buyerStatus || null;
+        }
+      } catch {}
+    }
+
+    if (!userId && visitorId) {
+      const pastKnown = await PageVisit.findOne({ visitorId, userId: { $ne: null } })
+        .populate('userId', 'buyerStatus')
+        .lean();
+      if (pastKnown && pastKnown.userId) {
+        userId = pastKnown.userId._id || pastKnown.userId;
+        isRegistered = true;
+        buyerStatus = pastKnown.userId?.buyerStatus || pastKnown.buyerStatus || null;
+      }
+    }
+
+    // 2. Identity stitching: if this visitor has a resolved user, stitch ALL their past anonymous visits
+    if (userId && visitorId) {
       await PageVisit.updateMany(
-        { visitorId: visitorId, userId: null },
+        { visitorId, userId: null },
         { 
           $set: { 
-            userId: req.user._id, 
+            userId, 
             isRegistered: true,
-            buyerStatus: req.user.buyerStatus || null
+            buyerStatus: buyerStatus || null
           } 
         }
       );
@@ -91,9 +119,9 @@ exports.recordVisit = async (req, res) => {
     const visit = await PageVisit.create({
       sessionId,
       visitorId:    visitorId || null,
-      userId:       req.user?._id || null,
-      isRegistered: !!req.user,
-      buyerStatus:  req.user?.buyerStatus || null,
+      userId:       userId || null,
+      isRegistered: isRegistered,
+      buyerStatus:  buyerStatus || null,
       page,
       enteredAt:    new Date(),
       referrer:     referrer || '',
@@ -139,6 +167,22 @@ exports.updateVisit = async (req, res) => {
 // ── GET /api/visits — Admin: get paginated visits with stats ─────────
 exports.getVisits = async (req, res) => {
   try {
+    // 0. Auto-stitch any orphaned visits whose visitorId is known to belong to a registered user
+    try {
+      const knownVisitors = await PageVisit.aggregate([
+        { $match: { userId: { $ne: null }, visitorId: { $ne: null } } },
+        { $group: { _id: '$visitorId', userId: { $first: '$userId' }, buyerStatus: { $first: '$buyerStatus' } } }
+      ]);
+      for (const reg of knownVisitors) {
+        if (reg._id && reg.userId) {
+          await PageVisit.updateMany(
+            { visitorId: reg._id, userId: null },
+            { $set: { userId: reg.userId, isRegistered: true, buyerStatus: reg.buyerStatus || null } }
+          );
+        }
+      }
+    } catch {}
+
     const {
       page = 1, limit = 50,
       pageFilter,       // 'home' | 'courses'
