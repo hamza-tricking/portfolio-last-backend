@@ -109,3 +109,40 @@ exports.getBunnyVideos = async (req, res) => {
   }
 };
 
+// ── GET /api/courses/previews ──────────────────────────────────────
+// Returns preview images organized by lesson from the backend
+exports.getPreviews = async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const previewsBaseDir = path.join(__dirname, '../public/course-previews');
+
+    const folderMap = {
+      1: 'lesson-1',
+      2: 'lesson-2',
+      3: 'lesson-3',
+      4: 'lesson-4',
+      5: 'lesson-5',
+    };
+
+    const previews = {};
+
+    for (const [lessonId, folderName] of Object.entries(folderMap)) {
+      const folderPath = path.join(previewsBaseDir, folderName);
+      if (fs.existsSync(folderPath)) {
+        const files = fs.readdirSync(folderPath)
+          .filter(file => /\.(jpg|jpeg|png|webp|gif)$/i.test(file))
+          .sort();
+        previews[lessonId] = files.map(file => `/course-previews/${folderName}/${file}`);
+      } else {
+        previews[lessonId] = [];
+      }
+    }
+
+    res.json({ success: true, previews });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+

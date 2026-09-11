@@ -7,10 +7,12 @@ const {
   deleteCourse,
   getStreamUrl,
   getBunnyVideos,
+  getPreviews,
 } = require('../controllers/courseController');
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
 
 router.get('/', optionalAuth, getCourses);
+router.get('/previews', getPreviews);
 
 // Streaming & Bunny API routes (must precede /:id)
 router.get('/stream/:videoId', protect, getStreamUrl);
