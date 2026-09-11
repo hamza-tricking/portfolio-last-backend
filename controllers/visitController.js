@@ -189,9 +189,10 @@ exports.getVisits = async (req, res) => {
 
     const {
       page = 1, limit = 50,
-      pageFilter,       // 'home' | 'courses'
+      pageFilter,       // 'home' | 'courses' | 'dashboard'
       dateFilter,       // 'today' | 'week' | 'month'
       visitorType,      // 'registered' | 'anonymous'
+      search,           // username, fullName, email, visitorId, ip
       converted,        // 'true' | 'false'
       device,           // 'mobile' | 'tablet' | 'desktop'
       visitorId,        // single visitor journey
@@ -219,6 +220,24 @@ exports.getVisits = async (req, res) => {
     if (converted === 'false') query.convertedToOrder = false;
     if (device) query.deviceType = device;
     if (visitorId) query.visitorId = visitorId;
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      const matchedUsers = await User.find({
+        $or: [
+          { username: searchRegex },
+          { fullName: searchRegex },
+          { email: searchRegex },
+        ]
+      }).select('_id');
+      const userIds = matchedUsers.map(u => u._id);
+
+      query.$or = [
+        { visitorId: searchRegex },
+        { ip: searchRegex },
+        { userId: { $in: userIds } },
+      ];
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
