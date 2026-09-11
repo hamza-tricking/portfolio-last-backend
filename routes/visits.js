@@ -4,7 +4,8 @@ const { optionalAuth, protect, adminOnly } = require('../middleware/auth');
 
 // Public — optionalAuth so logged-in user is linked if token present
 router.post('/', optionalAuth, recordVisit);
-router.patch('/:sessionId', updateVisit);  // called via sendBeacon, no auth header available
+router.post('/:sessionId', updateVisit);  // sendBeacon sends POST
+router.patch('/:sessionId', updateVisit); // fallback fetch PATCH
 
 // Admin only
 router.get('/', protect, adminOnly, getVisits);

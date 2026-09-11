@@ -143,18 +143,22 @@ exports.recordVisit = async (req, res) => {
   }
 };
 
-// ── PATCH /api/visits/:sessionId — Update visit on exit ──────────────
+// ── POST/PATCH /api/visits/:sessionId — Update visit duration & exit ──
 exports.updateVisit = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { exitedAt, timeOnPageSec, scrollDepthPct, startedOrder, convertedToOrder, orderId } = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch {}
+    }
+    const { exitedAt, timeOnPageSec, scrollDepthPct, startedOrder, convertedToOrder, orderId } = body || {};
 
     const update = {};
     if (exitedAt)        update.exitedAt = new Date(exitedAt);
-    if (timeOnPageSec != null) update.timeOnPageSec = timeOnPageSec;
-    if (scrollDepthPct != null) update.scrollDepthPct = scrollDepthPct;
-    if (startedOrder != null)   update.startedOrder = startedOrder;
-    if (convertedToOrder != null) update.convertedToOrder = convertedToOrder;
+    if (timeOnPageSec != null) update.timeOnPageSec = Math.max(1, Math.round(Number(timeOnPageSec)));
+    if (scrollDepthPct != null) update.scrollDepthPct = Math.round(Number(scrollDepthPct));
+    if (startedOrder != null)   update.startedOrder = Boolean(startedOrder);
+    if (convertedToOrder != null) update.convertedToOrder = Boolean(convertedToOrder);
     if (orderId)         update.orderId = orderId;
 
     await PageVisit.findOneAndUpdate({ sessionId }, { $set: update });
