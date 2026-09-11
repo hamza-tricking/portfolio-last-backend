@@ -102,6 +102,18 @@ exports.recordVisit = async (req, res) => {
       }
     }
 
+    // Never track admin visits on the dashboard
+    if (page === 'dashboard') {
+      let role = req.user?.role;
+      if (!role && userId) {
+        const u = await User.findById(userId).select('role').lean();
+        if (u) role = u.role;
+      }
+      if (role === 'admin') {
+        return res.json({ message: 'admin dashboard visit ignored' });
+      }
+    }
+
     // 2. Identity stitching: if this visitor has a resolved user, stitch ALL their past anonymous visits
     if (userId && visitorId) {
       await PageVisit.updateMany(
@@ -184,6 +196,13 @@ exports.getVisits = async (req, res) => {
             { $set: { userId: reg.userId, isRegistered: true, buyerStatus: reg.buyerStatus || null } }
           );
         }
+      }
+
+      // Also clean up any accidental admin visits to dashboard
+      const adminUsers = await User.find({ role: 'admin' }).select('_id');
+      const adminIds = adminUsers.map(a => a._id);
+      if (adminIds.length > 0) {
+        await PageVisit.deleteMany({ page: 'dashboard', userId: { $in: adminIds } });
       }
     } catch {}
 
