@@ -73,6 +73,20 @@ exports.recordVisit = async (req, res) => {
 
     const rawIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
     const acceptLang = req.headers['accept-language'] || language || '';
+    
+    // Identity stitching: if user is logged in, link their past anonymous visits
+    if (req.user && visitorId) {
+      await PageVisit.updateMany(
+        { visitorId: visitorId, userId: null },
+        { 
+          $set: { 
+            userId: req.user._id, 
+            isRegistered: true,
+            buyerStatus: req.user.buyerStatus || null
+          } 
+        }
+      );
+    }
 
     const visit = await PageVisit.create({
       sessionId,
