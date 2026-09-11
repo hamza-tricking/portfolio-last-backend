@@ -9,7 +9,7 @@ const pageVisitSchema = new mongoose.Schema({
   buyerStatus: { type: String, default: null },  // 'registered'|'buyer'|'member' if logged in
 
   // ── Page ────────────────────────────────────────────────────────
-  page:        { type: String, enum: ['home', 'courses'], required: true, index: true },
+  page:        { type: String, enum: ['home', 'courses', 'dashboard'], required: true, index: true },
 
   // ── Timing ──────────────────────────────────────────────────────
   enteredAt:     { type: Date, default: Date.now, index: true },
