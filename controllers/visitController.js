@@ -192,6 +192,7 @@ exports.getVisits = async (req, res) => {
       pageFilter,       // 'home' | 'courses' | 'dashboard'
       dateFilter,       // 'today' | 'week' | 'month'
       visitorType,      // 'registered' | 'anonymous'
+      source,           // 'Direct' | 'Instagram' | 'TikTok' | 'Facebook' | 'Google' | 'WhatsApp' | 'YouTube' | 'Twitter/X' | 'ref'
       search,           // username, fullName, email, visitorId, ip
       converted,        // 'true' | 'false'
       device,           // 'mobile' | 'tablet' | 'desktop'
@@ -220,6 +221,14 @@ exports.getVisits = async (req, res) => {
     if (converted === 'false') query.convertedToOrder = false;
     if (device) query.deviceType = device;
     if (visitorId) query.visitorId = visitorId;
+
+    if (source && source !== 'all') {
+      if (source === 'ref') {
+        query.refCode = { $ne: null, $nin: ['', null] };
+      } else {
+        query.referrerDomain = source;
+      }
+    }
 
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
