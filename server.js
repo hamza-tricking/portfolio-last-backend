@@ -38,6 +38,7 @@ app.use('/api/referrals', require('./routes/referral'));
 app.use('/api/qa', require('./routes/qa'));
 app.use('/api/leaks', require('./routes/leaks'));
 app.use('/api/project-orders', require('./routes/projectOrders'));
+app.use('/api/visits', require('./routes/visits'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
