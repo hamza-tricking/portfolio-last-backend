@@ -18,11 +18,11 @@ router.post('/report', async (req, res) => {
     }
 
     const report = await LeakReport.create({
-      reporterName,
-      reporterEmail,
-      reporterPhone,
-      videoUrl: videoUrl || '',
-      videoFile: req.body.videoFile || '',
+      reporterName: String(reporterName || '').slice(0, 100).trim(),
+      reporterEmail: String(reporterEmail || '').slice(0, 100).trim(),
+      reporterPhone: String(reporterPhone || '').slice(0, 30).trim(),
+      videoUrl: String(videoUrl || '').slice(0, 2000).trim(),
+      videoFile: String(req.body.videoFile || '').slice(0, 500).trim(),
     });
 
     res.status(201).json({
