@@ -106,6 +106,8 @@ router.post('/step1', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
+    const cleanFullName = String(fullName || '').slice(0, 100).trim();
+    const cleanAddress = String(address || '').slice(0, 200).trim();
     const cleanPhone = String(phone).replace(/\D/g, '');
     if (!/^0[567]\d{8}$/.test(cleanPhone)) {
       return res.status(400).json({
@@ -153,9 +155,9 @@ router.post('/step1', optionalAuth, async (req, res) => {
     if (orderId) {
       const order = await Order.findById(orderId);
       if (order && ['pending', 'awaiting_payment', 'confirmed'].includes(order.status)) {
-        order.fullName = fullName;
-        order.phone = phone;
-        order.address = address;
+        order.fullName = cleanFullName;
+        order.phone = cleanPhone;
+        order.address = cleanAddress;
         if (referrer) {
           order.referrer = referrer._id;
           order.amountUSD = 5;
@@ -175,13 +177,13 @@ router.post('/step1', optionalAuth, async (req, res) => {
 
     // In-progress order check: if an active in-progress order exists for this phone, update it
     const existing = await Order.findOne({ 
-      phone, 
+      phone: cleanPhone, 
       status: { $in: ['pending', 'awaiting_payment', 'confirmed'] } 
     }).sort({ createdAt: -1 });
 
     if (existing) {
-      existing.fullName = fullName;
-      existing.address = address;
+      existing.fullName = cleanFullName;
+      existing.address = cleanAddress;
       if (referrer) {
         existing.referrer = referrer._id;
         existing.amountUSD = 5;
@@ -199,9 +201,9 @@ router.post('/step1', optionalAuth, async (req, res) => {
     }
 
     const order = await Order.create({
-      fullName,
-      phone,
-      address,
+      fullName: cleanFullName,
+      phone: cleanPhone,
+      address: cleanAddress,
       user: req.user ? req.user._id : null,
       referrer: referrer ? referrer._id : null,
       amountUSD,
@@ -229,13 +231,15 @@ router.put('/:id/step2', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Identity number and consent are required.' });
     }
 
+    const cleanWatermarkId = String(watermarkIdNumber || '').slice(0, 50).trim();
+
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
     if (['expired', 'cancelled'].includes(order.status)) {
       return res.status(409).json({ message: 'This order is no longer active.' });
     }
 
-    order.watermarkIdNumber = watermarkIdNumber;
+    order.watermarkIdNumber = cleanWatermarkId;
     order.idConsentGiven = true;
     if (req.user && !order.user) {
       order.user = req.user._id;
