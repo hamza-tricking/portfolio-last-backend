@@ -41,7 +41,8 @@ const uploadReceipt = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 30 * 1024 * 1024, // 30MB limit
+    fieldSize: 30 * 1024 * 1024, // 30MB limit
     files: 1,
   },
 });
