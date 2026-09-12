@@ -106,6 +106,13 @@ router.post('/step1', optionalAuth, async (req, res) => {
       return res.status(400).json({ message: 'Name, phone, and address are required.' });
     }
 
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    if (!/^0[567]\d{8}$/.test(cleanPhone)) {
+      return res.status(400).json({
+        message: 'رقم الهاتف غير صالح. يجب أن يبدأ بـ 05 أو 06 أو 07 ويتكون من 10 أرقام (مثال: 0542781636).'
+      });
+    }
+
     // Block logged-in users who already own the course from placing another order on their account
     if (req.user && ['buyer', 'member'].includes(req.user.buyerStatus)) {
       return res.status(400).json({
