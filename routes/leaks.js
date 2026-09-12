@@ -3,7 +3,7 @@ const LeakReport = require('../models/LeakReport');
 const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
 
-const BOUNTY_USD = 5;
+const BOUNTY_USD = 0.5;
 
 // ── POST /api/leaks/report — public leak submission ───────────────
 router.post('/report', async (req, res) => {
@@ -26,7 +26,7 @@ router.post('/report', async (req, res) => {
     });
 
     res.status(201).json({
-      message: 'Report received! We will review and contact you for the $5 bounty.',
+      message: 'Report received! We will review and contact you for the $0.5 bounty.',
       reportId: report._id,
     });
   } catch (err) {
