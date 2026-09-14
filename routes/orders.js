@@ -6,6 +6,7 @@ const multer = require('multer');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
+const { isEligibleReferrer } = require('../utils/referralEligibility');
 
 // Receipt uploads configuration
 const receiptsDir = path.join(__dirname, '../public/uploads/receipts');
@@ -54,6 +55,10 @@ async function handleReferralOnPurchase(order) {
   const referrer = await User.findById(order.referrer);
   if (!referrer || referrer.isBlocked) return;
 
+  // Verify that referrer is an eligible course buyer
+  const isEligible = await isEligibleReferrer(referrer);
+  if (!isEligible) return;
+
   const amount = 1;
   const type = 'purchase';
 
@@ -73,7 +78,7 @@ router.get('/check-referral/:code', optionalAuth, async (req, res) => {
   try {
     const raw = (req.params.code || '').trim().toUpperCase();
     if (!raw) return res.json({ valid: false });
-    const referrerUser = await User.findOne({ referralCode: raw }).select('fullName username referralCode phone');
+    const referrerUser = await User.findOne({ referralCode: raw }).select('fullName username referralCode phone buyerStatus role isBlocked');
     if (referrerUser) {
       if (req.user && (referrerUser._id.equals(req.user._id) || referrerUser.referralCode === req.user.referralCode)) {
         return res.json({
@@ -82,6 +87,17 @@ router.get('/check-referral/:code', optionalAuth, async (req, res) => {
           message: 'لا يمكنك استخدام كود الإحالة الخاص بك (الإحالة الذاتية غير مسموحة).'
         });
       }
+
+      // Check if referrer is an eligible course buyer
+      const isEligible = await isEligibleReferrer(referrerUser);
+      if (!isEligible) {
+        return res.json({
+          valid: false,
+          notEligible: true,
+          message: 'كود الإحالة غير مفعل حالياً (الميزة متاحة فقط للمشتركين في الدورة).'
+        });
+      }
+
       return res.json({
         valid: true,
         referrerName: referrerUser.fullName || referrerUser.username || 'عضو مميز',
@@ -136,17 +152,20 @@ router.post('/step1', optionalAuth, async (req, res) => {
       );
 
       if (potentialReferrer && !isSelf) {
-        referrer = potentialReferrer;
-        amountUSD = 5; // $1 referral discount applied ($5 instead of $6)
-        // Handle one-time $2 registration bonus (first registration per referrer)
-        if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
-          referrer.earnings.push({
-            type: 'registration',
-            amount: 2,
-            status: 'pending_payout',
-          });
-          referrer.registrationBonusPaid = true;
-          await referrer.save();
+        const isEligible = await isEligibleReferrer(potentialReferrer);
+        if (isEligible) {
+          referrer = potentialReferrer;
+          amountUSD = 5; // $1 referral discount applied ($5 instead of $6)
+          // Handle one-time $2 registration bonus (first registration per referrer)
+          if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
+            referrer.earnings.push({
+              type: 'registration',
+              amount: 2,
+              status: 'pending_payout',
+            });
+            referrer.registrationBonusPaid = true;
+            await referrer.save();
+          }
         }
       }
     }

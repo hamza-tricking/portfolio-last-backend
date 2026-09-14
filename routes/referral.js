@@ -2,6 +2,7 @@ const router = require('express').Router();
 const User = require('../models/User');
 const Payout = require('../models/Payout');
 const { protect, adminOnly } = require('../middleware/auth');
+const { isEligibleReferrer } = require('../utils/referralEligibility');
 
 // ── GET /api/referrals/stats — user's referral dashboard data ─────
 router.get('/stats', protect, async (req, res) => {
@@ -47,11 +48,13 @@ router.get('/stats', protect, async (req, res) => {
       }
     }
 
+    const isEligible = await isEligibleReferrer(user);
     const referralUrl = `${detectedBaseUrl.replace(/\/$/, '')}/courses?ref=${user.referralCode}`;
 
     res.json({
       referralCode: user.referralCode,
       referralUrl,
+      isEligible,
       buyerStatus: user.buyerStatus,
       earnings: user.earnings,
       totalEarned,
@@ -73,6 +76,12 @@ router.post('/payout', protect, async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: 'User not found.' });
     if (user.isBlocked) return res.status(403).json({ message: 'Account is blocked.' });
+
+    const isEligible = await isEligibleReferrer(user);
+    if (!isEligible) {
+      return res.status(403).json({ message: 'خاصية سحب الأرباح متاحة فقط للمشتركين المؤكدين في الدورة.' });
+    }
+
     if (!user.ccpNumber) {
       return res.status(400).json({ message: 'Please save your CCP number in your profile first.' });
     }
