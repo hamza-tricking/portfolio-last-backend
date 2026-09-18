@@ -102,8 +102,8 @@ router.get('/check-referral/:code', optionalAuth, async (req, res) => {
         valid: true,
         referrerName: referrerUser.fullName || referrerUser.username || 'عضو مميز',
         discountUSD: 1,
-        finalPriceUSD: 5,
-        finalPriceDZD: 1250,
+        finalPriceUSD: 19,
+        finalPriceDZD: 4750,
       });
     }
     return res.json({ valid: false });
@@ -140,7 +140,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
 
     // Resolve referrer if a referral code was supplied
     let referrer = null;
-    let amountUSD = 6;
+    let amountUSD = 20;
     if (referralCode && typeof referralCode === 'string' && referralCode.trim()) {
       const cleanRef = referralCode.trim().toUpperCase();
       const potentialReferrer = await User.findOne({ referralCode: cleanRef });
@@ -155,7 +155,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         const isEligible = await isEligibleReferrer(potentialReferrer);
         if (isEligible) {
           referrer = potentialReferrer;
-          amountUSD = 5; // $1 referral discount applied ($5 instead of $6)
+          amountUSD = 19; // $1 referral discount applied ($19 instead of $20)
           // Handle one-time $2 registration bonus (first registration per referrer)
           if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
             referrer.earnings.push({
@@ -179,7 +179,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         order.address = cleanAddress;
         if (referrer) {
           order.referrer = referrer._id;
-          order.amountUSD = 5;
+          order.amountUSD = 19;
         }
         if (req.user && !order.user) {
           order.user = req.user._id;
@@ -189,7 +189,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
           message: 'Order updated.',
           orderId: order._id,
           amountUSD: order.amountUSD,
-          discountApplied: order.amountUSD === 5,
+          discountApplied: order.amountUSD === 19,
         });
       }
     }
@@ -205,7 +205,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
       existing.address = cleanAddress;
       if (referrer) {
         existing.referrer = referrer._id;
-        existing.amountUSD = 5;
+        existing.amountUSD = 19;
       }
       if (req.user && !existing.user) {
         existing.user = req.user._id;
@@ -215,7 +215,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         message: 'Order updated. We will call you soon.',
         orderId: existing._id,
         amountUSD: existing.amountUSD,
-        discountApplied: existing.amountUSD === 5,
+        discountApplied: existing.amountUSD === 19,
       });
     }
 
@@ -232,7 +232,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
       message: 'Order created. We will call you to confirm.',
       orderId: order._id,
       amountUSD: order.amountUSD,
-      discountApplied: order.amountUSD === 5,
+      discountApplied: order.amountUSD === 19,
     });
   } catch (err) {
     console.error(err);

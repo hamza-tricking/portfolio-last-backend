@@ -18,7 +18,7 @@ const orderSchema = new mongoose.Schema({
   },
   receiptUrl:  { type: String, default: '' },
   senderNote:  { type: String, default: '' },
-  amountUSD:   { type: Number, default: 6 },
+  amountUSD:   { type: Number, default: 20 },
 
   // Lifecycle
   status: {

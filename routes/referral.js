@@ -23,7 +23,7 @@ router.get('/stats', protect, async (req, res) => {
       .reduce((s, e) => s + e.amount, 0);
 
     // Milestone progress (capped at 100)
-    const milestoneProgress = Math.min((totalEarned / 6) * 100, 100);
+    const milestoneProgress = Math.min((totalEarned / 20) * 100, 100);
     const milestoneReached = user.referredPurchaseCount >= 4;
 
     // Detect base URL: from process.env.FRONTEND_URL, or request Origin / Referer, or host header
