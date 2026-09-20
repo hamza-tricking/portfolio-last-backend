@@ -31,8 +31,10 @@ const orderSchema = new mongoose.Schema({
   user:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // bound at delivery
   referrer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // who referred
 
-  // Admin notes
+  // Admin notes & re-submission tracking
   adminNote: { type: String, default: '' },
+  resubmissionCount: { type: Number, default: 0 },
+  lastResubmittedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

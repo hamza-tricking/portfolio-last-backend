@@ -184,6 +184,12 @@ router.post('/step1', optionalAuth, async (req, res) => {
         if (req.user && !order.user) {
           order.user = req.user._id;
         }
+        order.resubmissionCount = (order.resubmissionCount || 0) + 1;
+        order.lastResubmittedAt = new Date();
+        const nowStr = new Date().toLocaleString('fr-DZ', { timeZone: 'Africa/Algiers' });
+        const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 2000 د.ج)` : 'بدون كود إحالة';
+        const noteEntry = `[🔁 إعادة تأكيد #${order.resubmissionCount} - ${nowStr}]: ${refDetails}`;
+        order.adminNote = order.adminNote ? `${noteEntry}\n${order.adminNote}` : noteEntry;
         await order.save();
         return res.json({
           message: 'Order updated.',
@@ -198,7 +204,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
     const existing = await Order.findOne({ 
       phone: cleanPhone, 
       status: { $in: ['pending', 'awaiting_payment', 'confirmed'] } 
-    }).sort({ createdAt: -1 });
+    }).sort({ updatedAt: -1 });
 
     if (existing) {
       existing.fullName = cleanFullName;
@@ -210,6 +216,12 @@ router.post('/step1', optionalAuth, async (req, res) => {
       if (req.user && !existing.user) {
         existing.user = req.user._id;
       }
+      existing.resubmissionCount = (existing.resubmissionCount || 0) + 1;
+      existing.lastResubmittedAt = new Date();
+      const nowStr = new Date().toLocaleString('fr-DZ', { timeZone: 'Africa/Algiers' });
+      const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 2000 د.ج)` : 'بدون كود إحالة';
+      const noteEntry = `[🔁 إعادة إرسال #${existing.resubmissionCount} - ${nowStr}]: قام العميل بإعادة تأكيد الخطوة 1 ${refDetails}`;
+      existing.adminNote = existing.adminNote ? `${noteEntry}\n${existing.adminNote}` : noteEntry;
       await existing.save();
       return res.json({
         message: 'Order updated. We will call you soon.',
@@ -351,7 +363,7 @@ router.get('/', protect, adminOnly, async (req, res) => {
     const orders = await Order.find()
       .populate('user', 'fullName email phone username')
       .populate('referrer', 'fullName referralCode username')
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1 });
     res.json(orders);
   } catch (err) {
     res.status(500).json({ message: err.message });
