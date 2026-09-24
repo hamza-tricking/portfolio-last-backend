@@ -101,9 +101,9 @@ router.get('/check-referral/:code', optionalAuth, async (req, res) => {
       return res.json({
         valid: true,
         referrerName: referrerUser.fullName || referrerUser.username || 'عضو مميز',
-        discountUSD: 12,
-        finalPriceUSD: 8,
-        finalPriceDZD: 2000,
+        discountUSD: 6,
+        finalPriceUSD: 14,
+        finalPriceDZD: 3500,
       });
     }
     return res.json({ valid: false });
@@ -155,7 +155,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         const isEligible = await isEligibleReferrer(potentialReferrer);
         if (isEligible) {
           referrer = potentialReferrer;
-          amountUSD = 8; // Referral discount applied ($8 / 2000 DZD instead of $20 / 5000 DZD)
+          amountUSD = 14; // Referral discount applied ($14 / 3500 DZD instead of $20 / 5000 DZD)
           // Handle one-time $2 registration bonus (first registration per referrer)
           if (!referrer.registrationBonusPaid && !referrer.isBlocked) {
             referrer.earnings.push({
@@ -179,7 +179,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         order.address = cleanAddress;
         if (referrer) {
           order.referrer = referrer._id;
-          order.amountUSD = 8;
+          order.amountUSD = 14;
         }
         if (req.user && !order.user) {
           order.user = req.user._id;
@@ -187,7 +187,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
         order.resubmissionCount = (order.resubmissionCount || 0) + 1;
         order.lastResubmittedAt = new Date();
         const nowStr = new Date().toLocaleString('fr-DZ', { timeZone: 'Africa/Algiers' });
-        const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 2000 د.ج)` : 'بدون كود إحالة';
+        const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 3500 د.ج)` : 'بدون كود إحالة';
         const noteEntry = `[🔁 إعادة تأكيد #${order.resubmissionCount} - ${nowStr}]: ${refDetails}`;
         order.adminNote = order.adminNote ? `${noteEntry}\n${order.adminNote}` : noteEntry;
         await order.save();
@@ -211,7 +211,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
       existing.address = cleanAddress;
       if (referrer) {
         existing.referrer = referrer._id;
-        existing.amountUSD = 8;
+        existing.amountUSD = 14;
       }
       if (req.user && !existing.user) {
         existing.user = req.user._id;
@@ -219,7 +219,7 @@ router.post('/step1', optionalAuth, async (req, res) => {
       existing.resubmissionCount = (existing.resubmissionCount || 0) + 1;
       existing.lastResubmittedAt = new Date();
       const nowStr = new Date().toLocaleString('fr-DZ', { timeZone: 'Africa/Algiers' });
-      const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 2000 د.ج)` : 'بدون كود إحالة';
+      const refDetails = referrer ? `مع كود الإحالة (${referralCode.trim().toUpperCase()} - 3500 د.ج)` : 'بدون كود إحالة';
       const noteEntry = `[🔁 إعادة إرسال #${existing.resubmissionCount} - ${nowStr}]: قام العميل بإعادة تأكيد الخطوة 1 ${refDetails}`;
       existing.adminNote = existing.adminNote ? `${noteEntry}\n${existing.adminNote}` : noteEntry;
       await existing.save();
