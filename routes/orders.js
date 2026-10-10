@@ -534,4 +534,31 @@ router.put('/:id/status', protect, adminOnly, async (req, res) => {
   }
 });
 
+// ── DELETE /api/orders/:id — Delete a single order (admin) ────────
+router.delete('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const order = await Order.findByIdAndDelete(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+    res.json({ message: 'Order deleted successfully.', deletedId: req.params.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── DELETE /api/orders — Bulk delete orders (admin) ───────────────
+router.delete('/', protect, adminOnly, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Array of order ids is required.' });
+    }
+    const result = await Order.deleteMany({ _id: { $in: ids } });
+    res.json({ message: `Successfully deleted ${result.deletedCount} orders.`, deletedCount: result.deletedCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
